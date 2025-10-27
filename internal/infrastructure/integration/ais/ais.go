@@ -1,6 +1,7 @@
 package ais
 
 import (
+	"FairTask_Engine/internal/config"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -10,6 +11,10 @@ import (
 
 type AIS struct {
 	url string
+}
+
+func NewAIS(cfg *config.AISConfig) *AIS {
+	return &AIS{url: cfg.Url}
 }
 
 type SendOrderExecutorRequest struct {

@@ -2,8 +2,7 @@ package app
 
 import (
 	"FairTask_Engine/internal/config"
-	"FairTask_Engine/internal/domain/service/products"
-	cache "FairTask_Engine/internal/infrastructure/persistence/cache/redis"
+	"FairTask_Engine/internal/domain/service/order_balancer"
 	"FairTask_Engine/internal/infrastructure/persistence/postgresql"
 	"FairTask_Engine/internal/server"
 	"FairTask_Engine/pkg/contextx"
@@ -37,15 +36,13 @@ func Run(cfg *config.Config) {
 
 	defer db.Close()
 
-	c, err := cache.Connect(cfg.Redis)
-	if err != nil {
-		log.Fatal("connect to cache fail: ", err)
-	}
-	defer c.Close()
+	//aicImpl := ais.NewAIS(cfg.AIS)
+	aicImpl := &TestAIS{}
 
-	productsRepo := postgresql.NewProductRepo(db)
+	executorsRepo := postgresql.NewExecutorsRepo(db)
+	ordersRepo := postgresql.NewOrdersRepo(db)
 
-	productsService := products.NewProductService(productsRepo)
+	productsService := order_balancer.New(ordersRepo, executorsRepo, aicImpl)
 
 	httpServer := newHttpServer(l, productsService, cfg.Http)
 
@@ -77,10 +74,10 @@ func Run(cfg *config.Config) {
 
 func newHttpServer(
 	l *slog.Logger,
-	productsService *products.ProductService,
+	balancer *order_balancer.OrderBalancerService,
 	cfg *config.HttpConfig,
 ) *http.Server {
-	productsServer := server.NewProductsServer(productsService)
+	productsServer := server.NewBalancerServer(balancer)
 
 	s := server.NewServer(
 		productsServer,
@@ -135,4 +132,12 @@ func initLogger(debug bool) *slog.Logger {
 	return slog.New(slog.NewJSONHandler(io.MultiWriter(os.Stdout, rt), &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
+}
+
+type TestAIS struct {
+}
+
+func (ais *TestAIS) SendOrderExecutor(ctx context.Context, orderId, executorId int) error {
+	contextx.GetLoggerOrDefault(ctx).InfoContext(ctx, "AIS", slog.Int("order_id", orderId), slog.Int("executor_id", executorId))
+	return nil
 }

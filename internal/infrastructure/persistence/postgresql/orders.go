@@ -3,6 +3,7 @@ package postgresql
 import (
 	"FairTask_Engine/internal/domain/aggregate"
 	"FairTask_Engine/internal/domain/entity"
+	"FairTask_Engine/internal/domain/value"
 	"context"
 	"database/sql"
 	"errors"
@@ -28,12 +29,12 @@ func (r *OrdersRepo) Save(ctx context.Context, order *aggregate.OrderWithParamet
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	if _, err := tx.NamedExecContext(ctx, "INSERT INTO orders (id, parent_id, text, status) VALUES (:parent_id, :text, :status)", order.Order); err != nil {
+	if _, err := tx.NamedExecContext(ctx, "INSERT INTO orders (id, parent_id, text, status, executor_id) VALUES (:id, :parent_id, :text, :status, :executor_id)", order.Order); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
 	for _, param := range order.Parameters {
-		if _, err := tx.NamedExecContext(ctx, "INSERT INTO order_parametrs (order_id, parameter_id, value) VALUES (:order_id, :parametr_id, :value)", param); err != nil {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO order_parameters (order_id, parameter_id, value) VALUES ($1, $2, $3)", order.Id, param.Id, param.Value); err != nil {
 			return fmt.Errorf("%s: %w", op, err)
 		}
 	}
@@ -48,7 +49,7 @@ func (r *OrdersRepo) Save(ctx context.Context, order *aggregate.OrderWithParamet
 func (r *OrdersRepo) UpdateExecutor(ctx context.Context, id int, executorId int) error {
 	const op = "OrdersRepo.UpdateExecutor"
 
-	if _, err := r.db.ExecContext(ctx, `UPDATE orders SET executor_id=? WHERE id=?`, executorId, id); err != nil {
+	if _, err := r.db.ExecContext(ctx, `UPDATE orders SET executor_id=$1 WHERE id=$2`, executorId, id); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 	return nil
@@ -59,19 +60,19 @@ func (r *OrdersRepo) GetById(ctx context.Context, id int) (*entity.Order, error)
 
 	order := new(entity.Order)
 
-	if err := r.db.GetContext(ctx, order, "SELECT * FROM orders WHERE id=?", id); err != nil {
+	if err := r.db.GetContext(ctx, order, "SELECT * FROM orders WHERE id=$1", id); err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
 	return order, nil
 }
 
-func (r *OrdersRepo) GetParameters(ctx context.Context, id int) ([]entity.Parameter, error) {
+func (r *OrdersRepo) GetParameters(ctx context.Context, id int) ([]entity.OrderParameter, error) {
 	const op = "OrdersRepo.GetParameters"
 
-	var params []entity.Parameter
+	var params []entity.OrderParameter
 
-	if err := r.db.SelectContext(ctx, &params, "SELECT parameters.id, parameter.name, order_parameters.value FROM order_parameters INNER JOIN parameters ON parameters.id = order_parameters.parameter_id WHERE order_parameters.order_id=?", id); err != nil {
+	if err := r.db.SelectContext(ctx, &params, "SELECT parameter_id AS id, value FROM order_parameters WHERE order_parameters.order_id=$1", id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return params, nil
 		}
@@ -81,10 +82,10 @@ func (r *OrdersRepo) GetParameters(ctx context.Context, id int) ([]entity.Parame
 	return params, nil
 }
 
-func (r *OrdersRepo) SetEnabled(ctx context.Context, id int, enabled bool) error {
+func (r *OrdersRepo) SetStatus(ctx context.Context, id int, status value.OrderStatus) error {
 	const op = "OrdersRepo.SetEnabled"
 
-	if _, err := r.db.ExecContext(ctx, `UPDATE orders SET enabled=? WHERE id=?`, enabled, id); err != nil {
+	if _, err := r.db.ExecContext(ctx, `UPDATE orders SET status=$1 WHERE id=$2`, status, id); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -94,7 +95,7 @@ func (r *OrdersRepo) SetEnabled(ctx context.Context, id int, enabled bool) error
 func (r *OrdersRepo) Delete(ctx context.Context, id int) error {
 	const op = "OrdersRepo.Delete"
 
-	if _, err := r.db.ExecContext(ctx, `DELETE FROM orders WHERE id=?`, id); err != nil {
+	if _, err := r.db.ExecContext(ctx, `DELETE FROM orders WHERE id=$1`, id); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 	return nil

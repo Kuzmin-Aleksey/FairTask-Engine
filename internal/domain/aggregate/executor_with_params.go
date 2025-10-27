@@ -4,5 +4,5 @@ import "FairTask_Engine/internal/domain/entity"
 
 type ExecutorWithParams struct {
 	entity.Executor
-	Parameters []entity.Parameter `json:"parameters"`
+	Parameters []entity.ExecutorParameter `json:"parameters"`
 }

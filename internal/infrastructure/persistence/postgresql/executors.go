@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -13,41 +14,43 @@ type ExecutorsRepo struct {
 	db *sqlx.DB
 }
 
-func NewExecutors(db *sqlx.DB) *ExecutorsRepo {
+func NewExecutorsRepo(db *sqlx.DB) *ExecutorsRepo {
 	return &ExecutorsRepo{
 		db: db,
 	}
 }
 
-func (r *ExecutorsRepo) GetParameters(ctx context.Context, id int) ([]entity.Parameter, error) {
+func (r *ExecutorsRepo) GetParameters(ctx context.Context, id int) ([]entity.ExecutorParameter, error) {
 	const op = "ExecutorsRepo.GetParameters"
 
-	var params []entity.Parameter
+	var params []entity.ExecutorParameter
 
-	if err := r.db.SelectContext(ctx, &params, "SELECT parameters.id, parameters.name, executor_params.value FROM executor_params INNER JOIN parameters ON parameters.id = executor_params.param_id WHERE executor_params.user_id = ?", id); err != nil {
+	if err := r.db.SelectContext(ctx, &params, "SELECT parameters.id, executor_parameters.mask, parameters.type FROM executor_parameters INNER JOIN parameters ON parameters.id = executor_parameters.parameter_id WHERE executor_parameters.executor_id = $1", id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
+			return params, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
 	return params, nil
 }
 
 func (r *ExecutorsRepo) GetActive(ctx context.Context) ([]aggregate.ExecutorWithParams, error) {
+	const op = "ExecutorsRepo.GetActive"
+
 	var executors []aggregate.ExecutorWithParams
 
-	if err := r.db.SelectContext(ctx, &executors, "SELECT executors.id, executor.name, (SELECT count(*) FROM orders WHERE orders.executor_id = executors.id) AS order_count FROM executors WHERE executors.active"); err != nil {
+	if err := r.db.SelectContext(ctx, &executors, "SELECT id, name, (SELECT count(*) FROM orders WHERE orders.executor_id = executors.id AND orders.status = 'processed') AS order_count, max_daily_limit FROM executors WHERE executors.status = 'active'"); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
 	for i, executor := range executors {
 		params, err := r.GetParameters(ctx, executor.Id)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%s: %w", op, err)
 		}
 
 		executors[i].Parameters = params
