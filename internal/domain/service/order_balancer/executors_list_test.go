@@ -8,7 +8,6 @@ import (
 )
 
 func TestExecutorsList(t *testing.T) {
-
 	list := executorsList{
 		list: &executorNode{
 			executor: &aggregate.ExecutorWithParams{
@@ -33,13 +32,46 @@ func TestExecutorsList(t *testing.T) {
 		},
 	}
 
-	log.Println(list.len())
+	log.Println(list.len(), list.String())
 
 	list.del(2)
 
-	log.Println(list.len())
+	log.Println(list.len(), list.String())
 
 	list.addToEnd(&aggregate.ExecutorWithParams{Executor: entity.Executor{Id: 4}})
 
-	log.Println(list.len())
+	log.Println(list.len(), list.String())
+}
+
+func TestExecutorsGetFirst(t *testing.T) {
+	list := executorsList{
+		list: &executorNode{
+			executor: &aggregate.ExecutorWithParams{
+				Executor: entity.Executor{
+					Id: 1,
+				},
+			},
+			before: &executorNode{
+				executor: &aggregate.ExecutorWithParams{
+					Executor: entity.Executor{
+						Id: 2,
+					},
+				},
+				before: &executorNode{
+					executor: &aggregate.ExecutorWithParams{
+						Executor: entity.Executor{
+							Id: 3,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	firs := list.getFirsAndAddOrder()
+	log.Println(firs, list.len(), list.String())
+	firs = list.getFirsAndAddOrder()
+	log.Println(firs, list.len(), list.String())
+	firs = list.getFirsAndAddOrder()
+	log.Println(firs, list.len(), list.String())
 }

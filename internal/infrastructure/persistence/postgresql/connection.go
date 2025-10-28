@@ -10,7 +10,7 @@ import (
 )
 
 func Connect(cfg *config.DBConfig) (*sqlx.DB, error) {
-	db, err := sqlx.Open("postgres", fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Schema))
+	db, err := sqlx.Open("postgres", fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable client_encoding=UTF8", cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Schema))
 	if err != nil {
 		return nil, err
 	}

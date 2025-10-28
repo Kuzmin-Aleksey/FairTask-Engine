@@ -23,7 +23,6 @@ type OrdersRepo interface {
 }
 
 type ExecutorsRepo interface {
-	//GetParameters(ctx context.Context, id int) ([]entity.ExecutorParameter, error)
 	GetById(ctx context.Context, id int) (*aggregate.ExecutorWithParams, error)
 	GetActive(ctx context.Context) ([]aggregate.ExecutorWithParams, error)
 	SetStatus(ctx context.Context, id int, status string) error
@@ -160,6 +159,8 @@ func (s *OrderBalancerService) UpdateOrderStatus(ctx context.Context, orderId in
 				return fmt.Errorf("%s: %w", op, err)
 			}
 		}
+	} else {
+		s.freeExecutors.delOneOrder(order.ExecutorId)
 	}
 
 	if err := s.ordersRepo.SetStatus(ctx, orderId, status); err != nil {
@@ -189,14 +190,15 @@ func (s *OrderBalancerService) FindExecutor(ctx context.Context, order *aggregat
 	}
 
 	if len(order.Parameters) == 0 {
-		executor := s.freeExecutors.getFirsAndDel()
+		executor := s.freeExecutors.getFirsAndAddOrder()
 		if executor == nil {
 			return 0, nil
 		}
+
 		return executor.Id, nil
 	}
 
-	executor := s.freeExecutors.findByParamsAndDelete(order.Parameters)
+	executor := s.freeExecutors.findByParamsAndAddOrder(order.Parameters)
 	if executor == nil {
 		contextx.GetLoggerOrDefault(ctx).WarnContext(ctx, "executor not found", slog.Any("order", order))
 		return 0, nil

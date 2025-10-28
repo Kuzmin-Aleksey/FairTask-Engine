@@ -2,3 +2,5 @@
 config/config.yaml
 justfile
 logs
+main.go
+tests

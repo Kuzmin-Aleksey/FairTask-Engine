@@ -3,6 +3,7 @@ package order_balancer
 import (
 	"FairTask_Engine/internal/domain/aggregate"
 	"FairTask_Engine/internal/domain/entity"
+	"fmt"
 	"sync"
 )
 
@@ -10,6 +11,8 @@ type executorNode struct {
 	executor *aggregate.ExecutorWithParams
 	before   *executorNode
 }
+
+// TODO use ExecutorsRepo
 
 type executorsList struct {
 	mu   sync.Mutex
@@ -58,6 +61,43 @@ func (l *executorsList) del(id int) {
 	}
 }
 
+func (l *executorsList) delOneOrder(id int) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if l.list == nil {
+		return
+	}
+
+	current := l.list
+
+	for current.before != nil {
+		if current.executor.Id == id {
+			executor := current.executor
+			executor.OrderCount--
+
+			for current.before != nil {
+				if current.before.executor.OrderCount > executor.OrderCount {
+					before := current.before
+					current.before = &executorNode{
+						executor: executor,
+						before:   before,
+					}
+					return
+				}
+				current = current.before
+			}
+
+			current.before = &executorNode{executor: executor}
+
+			return
+		}
+	}
+
+	current.executor.OrderCount--
+	return
+}
+
 func (l *executorsList) addToEnd(executor *aggregate.ExecutorWithParams) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -96,17 +136,19 @@ func (l *executorsList) insertByOrderCount(executor *aggregate.ExecutorWithParam
 
 	current := l.list
 	for current != nil {
-		if current.executor.OrderCount < executor.OrderCount {
+		if current.executor.OrderCount > executor.OrderCount {
 			before := current.before
 			current.before = &executorNode{
 				executor: executor,
 				before:   before,
 			}
+			return
 		}
+		current = current.before
 	}
 }
 
-func (l *executorsList) findByParamsAndDelete(params []entity.OrderParameter) *aggregate.ExecutorWithParams {
+func (l *executorsList) findByParamsAndAddOrder(params []entity.OrderParameter) (executor *aggregate.ExecutorWithParams) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -114,36 +156,39 @@ func (l *executorsList) findByParamsAndDelete(params []entity.OrderParameter) *a
 		return nil
 	}
 
-	if checkExecutorParams(l.list.executor, params) {
-		executor := l.list.executor
-		l.list = l.list.before
-		return executor
-	}
+	current := l.list
 
-	mappedParams := mapParams(params)
-	paramsLen := len(params)
+	for current.before != nil {
+		if checkExecutorParams(current.executor, params) {
+			executor = current.executor
+			executor.OrderCount++
 
-	last := l.list
-	current := l.list.before
-
-	for current != nil {
-		var count int
-		for _, executorParam := range current.executor.Parameters {
-			if param, ok := mappedParams[executorParam.Id]; ok && matchParam(executorParam, param) {
-				count++
-				if count == paramsLen {
-					executor := current.executor
-					last.before = current.before
-					return executor
+			for current.before != nil {
+				if current.before.executor.OrderCount > executor.OrderCount {
+					before := current.before
+					current.before = &executorNode{
+						executor: executor,
+						before:   before,
+					}
+					return
 				}
+				current = current.before
 			}
+
+			current.before = &executorNode{executor: executor}
+
+			return
 		}
 	}
 
-	return nil
+	if checkExecutorParams(current.executor, params) {
+		current.executor.OrderCount++
+		executor = current.executor
+	}
+	return
 }
 
-func (l *executorsList) getFirsAndDel() *aggregate.ExecutorWithParams {
+func (l *executorsList) getFirsAndAddOrder() (executor *aggregate.ExecutorWithParams) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -151,8 +196,41 @@ func (l *executorsList) getFirsAndDel() *aggregate.ExecutorWithParams {
 		return nil
 	}
 
-	executor := l.list.executor
+	executor = l.list.executor
+	executor.OrderCount++
+
 	l.list = l.list.before
 
-	return executor
+	// sort
+	current := l.list
+
+	for current.before != nil {
+		if current.before.executor.OrderCount > executor.OrderCount {
+			before := current.before
+			current.before = &executorNode{
+				executor: executor,
+				before:   before,
+			}
+			return
+		}
+		current = current.before
+	}
+
+	current.before = &executorNode{executor: executor}
+
+	return
+}
+
+func (l *executorsList) String() string {
+	s := "[ "
+
+	current := l.list
+
+	for current != nil {
+		s += fmt.Sprintf("%+v ", current.executor)
+
+		current = current.before
+	}
+
+	return s + "]"
 }
