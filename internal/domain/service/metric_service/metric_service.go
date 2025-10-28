@@ -69,7 +69,7 @@ func (s *MetricService) GetOrderCountByLimit(ctx context.Context, limit string) 
 	timetable := make(map[time.Time]int)
 
 	for i, count := range counts {
-		timetable[start.Add(time.Duration(i)*delay)] = count
+		timetable[start.Add(time.Duration(i)*delay)] = count + 1
 
 	}
 

@@ -64,23 +64,22 @@ func (s *BalancerServer) ApiHandleUpdateStatus(w http.ResponseWriter, r *http.Re
 	}
 }
 
-/*
-{
-  "order": {
-    "id": 0,
-    "parent_id": 0,
-    "text": "string",
-  },
-  "order_params": [
-		{
-			"params_id": 1,
-			"value": "string"
-		},
-		{
-			"params_id": 2,
-			"value": "5"
-		}
-  ]
+type ApiHandleSetExecutorStatusRequest struct {
+	ExecutorId int    `json:"executor_id"`
+	Status     string `json:"status"`
 }
 
-*/
+func (s *BalancerServer) ApiHandleSetExecutorStatus(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req := new(ApiHandleSetExecutorStatusRequest)
+	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
+		writeAndLogErr(ctx, w, failure.NewInvalidRequestError(err.Error()))
+		return
+	}
+
+	if err := s.balancer.SetExecutorStatus(ctx, req.ExecutorId, req.Status); err != nil {
+		writeAndLogErr(ctx, w, err)
+		return
+	}
+}

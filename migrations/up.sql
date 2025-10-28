@@ -4,10 +4,10 @@ CREATE TABLE orders
 (
     id          INT PRIMARY KEY,
     parent_id   INT,
-    text        TEXT         NOT NULL,
-    status      order_status NOT NULL,
+    text        TEXT                    NOT NULL,
+    status      order_status            NOT NULL,
     executor_id INT,
-    ts          TIMESTAMP DEFAULT now()  NOT NULL
+    ts          TIMESTAMP DEFAULT now() NOT NULL
 );
 
 
@@ -33,16 +33,15 @@ CREATE TYPE executor_status AS ENUM ('active', 'inactive');
 
 CREATE TABLE executors
 (
-    id              INT PRIMARY KEY,
-    name            VARCHAR(255),
-    status          executor_status NOT NULL,
-    max_daily_limit SMALLINT CHECK (max_daily_limit >= 0)
+    id     SERIAL PRIMARY KEY,
+    name   VARCHAR(255)    NOT NULL,
+    status executor_status NOT NULL
 );
 
 CREATE TABLE executor_parameters
 (
-    parameter_id    INT  NOT NULL,
-    executor_id INT  NOT NULL,
-    mask        TEXT NOT NULL,
+    parameter_id INT  NOT NULL,
+    executor_id  INT  NOT NULL,
+    mask         TEXT NOT NULL,
     UNIQUE (parameter_id, executor_id)
 )
