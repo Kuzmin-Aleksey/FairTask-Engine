@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"log/slog"
 	"math/rand/v2"
 	"strconv"
@@ -96,7 +95,7 @@ func (s *OrderBalancerService) UpdateOrderStatus(ctx context.Context, orderId in
 
 	switch status {
 	case value.OrderStatusReject, value.OrderStatusAccept:
-		if err := s.ordersRepo.Delete(ctx, orderId); err != nil {
+		if err := s.ordersRepo.SetStatus(ctx, orderId, status); err != nil {
 			return fmt.Errorf("%s: %w", op, err)
 		}
 
@@ -218,7 +217,6 @@ func filterByParameters(executors []aggregate.ExecutorWithParams, parameters []e
 		var count int
 		for _, executorParam := range executor.Parameters {
 			if param, ok := mappedParams[executorParam.Id]; ok && matchParam(executorParam, param) {
-				log.Println("param", param, "ok")
 				count++
 				if count == paramsLen {
 					resExecutors = append(resExecutors, executor)
@@ -270,6 +268,7 @@ func compareInt(s []string) bool {
 		if lastN >= n {
 			return false
 		}
+		lastN = n
 	}
 	return true
 }
@@ -280,6 +279,7 @@ func compareFloat(s []string) bool {
 		if lastN >= n {
 			return false
 		}
+		lastN = n
 	}
 	return true
 }
@@ -290,6 +290,7 @@ func compareDatetime(s []string) bool {
 		if lastTime.After(t) {
 			return false
 		}
+		lastTime = t
 	}
 	return true
 }
@@ -304,7 +305,7 @@ func parseMask(mask string, val string) []string {
 		return []string{val, mask[1:]}
 	}
 	if xIdx == len(mask)-1 {
-		return []string{mask[:len(val)-1], val}
+		return []string{mask[:len(mask)-1], val}
 	}
 
 	return []string{mask[:xIdx], val, mask[xIdx+1:]}

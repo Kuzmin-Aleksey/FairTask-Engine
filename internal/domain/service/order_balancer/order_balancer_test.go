@@ -16,6 +16,24 @@ func TestMatchParam(t *testing.T) {
 	}{
 		{
 			ExecutorParam: entity.ExecutorParameter{
+				Type: value.ParameterTypeInt,
+				Mask: "2x3",
+			},
+			OrderParam: "4",
+
+			Result: false,
+		},
+		{
+			ExecutorParam: entity.ExecutorParameter{
+				Type: value.ParameterTypeFloat,
+				Mask: "2.5x",
+			},
+			OrderParam: "2",
+
+			Result: false,
+		},
+		{
+			ExecutorParam: entity.ExecutorParameter{
 				Type: value.ParameterTypeFloat,
 				Mask: "2.5x",
 			},
