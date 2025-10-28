@@ -1,13 +1,19 @@
 package server
 
 type Server struct {
-	balancer *BalancerServer
+	balancer   *BalancerServer
+	metric     *MetricServer
+	parameters *ParametersServer
 }
 
 func NewServer(
 	products *BalancerServer,
+	metric *MetricServer,
+	parameters *ParametersServer,
 ) *Server {
 	return &Server{
-		balancer: products,
+		balancer:   products,
+		metric:     metric,
+		parameters: parameters,
 	}
 }

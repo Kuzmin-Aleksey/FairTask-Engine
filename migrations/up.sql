@@ -6,7 +6,8 @@ CREATE TABLE orders
     parent_id   INT,
     text        TEXT         NOT NULL,
     status      order_status NOT NULL,
-    executor_id INT
+    executor_id INT,
+    ts          TIMESTAMP DEFAULT now()  NOT NULL
 );
 
 
@@ -23,7 +24,7 @@ CREATE TYPE value_type AS ENUM ('int', 'float', 'datetime', 'text', 'bool');
 
 CREATE TABLE parameters
 (
-    id   INT PRIMARY KEY,
+    id   SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     type value_type   NOT NULL
 );

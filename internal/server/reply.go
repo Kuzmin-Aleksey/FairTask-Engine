@@ -10,6 +10,10 @@ import (
 	"net/http"
 )
 
+type IdResponse struct {
+	Id int `json:"id"`
+}
+
 type ErrorResponse struct {
 	Error string `json:"error"`
 }

@@ -3,9 +3,9 @@ package entity
 import "FairTask_Engine/internal/domain/value"
 
 type Parameter struct {
-	Id    int    `json:"parameter_id" db:"parameter_id"`
-	Name  string `json:"name" db:"name"`
-	Value string `json:"value" db:"value"`
+	Id   int    `json:"id" db:"id"`
+	Name string `json:"name" db:"name"`
+	Type string `json:"type" db:"type"`
 }
 
 type OrderParameter struct {

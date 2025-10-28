@@ -2,7 +2,9 @@ package app
 
 import (
 	"FairTask_Engine/internal/config"
+	"FairTask_Engine/internal/domain/service/metric_service"
 	"FairTask_Engine/internal/domain/service/order_balancer"
+	"FairTask_Engine/internal/domain/service/parameters_service"
 	"FairTask_Engine/internal/infrastructure/persistence/postgresql"
 	"FairTask_Engine/internal/server"
 	"FairTask_Engine/pkg/contextx"
@@ -41,10 +43,14 @@ func Run(cfg *config.Config) {
 
 	executorsRepo := postgresql.NewExecutorsRepo(db)
 	ordersRepo := postgresql.NewOrdersRepo(db)
+	metricRepo := postgresql.NewMetricRepo(db)
+	parametersRepo := postgresql.NewParametersRepo(db)
 
 	productsService := order_balancer.New(ordersRepo, executorsRepo, aicImpl)
+	metricService := metric_service.NewMetricService(metricRepo)
+	parametersService := parameters_service.NewParametersService(parametersRepo)
 
-	httpServer := newHttpServer(l, productsService, cfg.Http)
+	httpServer := newHttpServer(l, productsService, metricService, parametersService, cfg.Http)
 
 	go func() {
 		if cfg.Http.SSLCertPath != "" && cfg.Http.SSLKeyPath != "" {
@@ -75,12 +81,18 @@ func Run(cfg *config.Config) {
 func newHttpServer(
 	l *slog.Logger,
 	balancer *order_balancer.OrderBalancerService,
+	metric *metric_service.MetricService,
+	parameters *parameters_service.ParametersService,
 	cfg *config.HttpConfig,
 ) *http.Server {
 	productsServer := server.NewBalancerServer(balancer)
+	metricServer := server.NewMetricServer(metric)
+	parametersServer := server.NewParametersServer(parameters)
 
 	s := server.NewServer(
 		productsServer,
+		metricServer,
+		parametersServer,
 	)
 
 	rtr := mux.NewRouter()
