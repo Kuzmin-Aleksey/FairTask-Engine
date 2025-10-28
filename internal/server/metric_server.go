@@ -41,3 +41,27 @@ func (s *MetricServer) ApiHandleGetOrderCountByLimit(w http.ResponseWriter, r *h
 
 	writeJson(ctx, w, timetable, http.StatusOK)
 }
+
+type responseCount struct {
+	Count int `json:"count"`
+}
+
+func (s *MetricServer) ApiHandleGetOllOrderCount(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	count, err := s.metric.GetOllOrderCount(ctx)
+	if err != nil {
+		writeAndLogErr(ctx, w, failure.NewInvalidRequestError(err.Error()))
+		return
+	}
+	writeJson(ctx, w, responseCount{count}, http.StatusOK)
+}
+
+func (s *MetricServer) ApiHandleGetCompleteOrderCount(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	count, err := s.metric.GetCompleteOrderCount(ctx)
+	if err != nil {
+		writeAndLogErr(ctx, w, failure.NewInvalidRequestError(err.Error()))
+		return
+	}
+	writeJson(ctx, w, responseCount{count}, http.StatusOK)
+}

@@ -17,15 +17,21 @@ type OrdersRepo interface {
 	Save(ctx context.Context, order *aggregate.OrderWithParameter) error
 	UpdateExecutor(ctx context.Context, id int, executorId int) error
 	GetById(ctx context.Context, id int) (*entity.Order, error)
+	GetWithoutExecutor(ctx context.Context) ([]aggregate.OrderWithParameter, error)
 	GetParameters(ctx context.Context, id int) ([]entity.OrderParameter, error)
 	SetStatus(ctx context.Context, id int, status value.OrderStatus) error
 	Delete(ctx context.Context, id int) error
 }
 
 type ExecutorsRepo interface {
+	Create(ctx context.Context, executor *aggregate.ExecutorWithParams) error
 	GetById(ctx context.Context, id int) (*aggregate.ExecutorWithParams, error)
+	GetAll(ctx context.Context) ([]aggregate.ExecutorWithParams, error)
 	GetActive(ctx context.Context) ([]aggregate.ExecutorWithParams, error)
 	SetStatus(ctx context.Context, id int, status string) error
+	Delete(ctx context.Context, id int) error
+	AddParameter(ctx context.Context, id int, param *entity.ExecutorParameter) error
+	DeleteParameter(ctx context.Context, id int, paramId int) error
 }
 
 type AIS interface {
@@ -63,7 +69,7 @@ func (s *OrderBalancerService) NewOrder(ctx context.Context, order *aggregate.Or
 
 	order.Status = value.OrderStatusProcessed
 
-	executorId, err := s.FindExecutor(ctx, order)
+	executorId, err := s.findExecutor(ctx, order)
 	if err != nil {
 		return err
 	}
@@ -73,35 +79,15 @@ func (s *OrderBalancerService) NewOrder(ctx context.Context, order *aggregate.Or
 	} else {
 		order.ExecutorId = executorId
 
+		contextx.GetLoggerOrDefault(ctx).InfoContext(ctx, "executor found", slog.Any("order", order))
+
 		if err := s.AIS.SendOrderExecutor(ctx, order.Id, executorId); err != nil {
 			contextx.GetLoggerOrDefault(ctx).WarnContext(ctx, "send order error", logx.Error(err))
 		}
 	}
 
-	contextx.GetLoggerOrDefault(ctx).InfoContext(ctx, "executor found", slog.Any("order", order))
-
 	if err := s.ordersRepo.Save(ctx, order); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
-	}
-
-	return nil
-}
-
-func (s *OrderBalancerService) SetExecutorStatus(ctx context.Context, id int, status string) error {
-	const op = "OrderBalancerService.SetExecutorStatus"
-	if err := s.executorsRepo.SetStatus(ctx, id, status); err != nil {
-		return fmt.Errorf("%s: %w", op, err)
-	}
-
-	if status == "inactive" {
-		s.freeExecutors.del(id)
-	} else {
-		executor, err := s.executorsRepo.GetById(ctx, id)
-		if err != nil {
-			return fmt.Errorf("%s: %w", op, err)
-		}
-
-		s.freeExecutors.insertByOrderCount(executor)
 	}
 
 	return nil
@@ -147,7 +133,7 @@ func (s *OrderBalancerService) UpdateOrderStatus(ctx context.Context, orderId in
 
 		if executor.Status == "inactive" || !checkExecutorParams(executor, params) {
 			// find new executor
-			executorId, err := s.FindExecutor(ctx, &aggregate.OrderWithParameter{
+			executorId, err := s.findExecutor(ctx, &aggregate.OrderWithParameter{
 				Order:      *order,
 				Parameters: params,
 			})
@@ -170,8 +156,8 @@ func (s *OrderBalancerService) UpdateOrderStatus(ctx context.Context, orderId in
 	return nil
 }
 
-func (s *OrderBalancerService) FindExecutor(ctx context.Context, order *aggregate.OrderWithParameter) (int, error) {
-	const op = "OrderBalancerService.FindExecutor"
+func (s *OrderBalancerService) findExecutor(ctx context.Context, order *aggregate.OrderWithParameter) (int, error) {
+	const op = "OrderBalancerService.findExecutor"
 
 	if order.ParentId != 0 {
 		lastOrder, err := s.ordersRepo.GetById(ctx, order.ParentId)
@@ -200,9 +186,132 @@ func (s *OrderBalancerService) FindExecutor(ctx context.Context, order *aggregat
 
 	executor := s.freeExecutors.findByParamsAndAddOrder(order.Parameters)
 	if executor == nil {
-		contextx.GetLoggerOrDefault(ctx).WarnContext(ctx, "executor not found", slog.Any("order", order))
 		return 0, nil
 	}
 
 	return executor.Id, nil
+}
+
+func (s *OrderBalancerService) checkOrders(ctx context.Context, executor *aggregate.ExecutorWithParams) error {
+	const op = "OrderBalancerService.checkOrders"
+
+	orders, err := s.ordersRepo.GetWithoutExecutor(ctx)
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	for _, order := range orders {
+		if checkExecutorParams(executor, order.Parameters) {
+			contextx.GetLoggerOrDefault(ctx).InfoContext(ctx, "order found", slog.Any("order", order), slog.Any("executor", executor))
+
+			if err := s.ordersRepo.UpdateExecutor(ctx, order.Id, executor.Id); err != nil {
+				return fmt.Errorf("%s: %w", op, err)
+			}
+
+			if err := s.AIS.SendOrderExecutor(ctx, order.Id, executor.Id); err != nil {
+				return fmt.Errorf("%s: %w", op, err)
+			}
+
+			s.freeExecutors.addOrder(executor.Id)
+		}
+	}
+
+	return nil
+}
+
+// --- Executors ---
+
+func (s *OrderBalancerService) CreateExecutor(ctx context.Context, executor *aggregate.ExecutorWithParams) error {
+	const op = "OrderBalancerService.CreateExecutor"
+	if err := s.executorsRepo.Create(ctx, executor); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	if executor.Status == "active" {
+		if err := s.checkOrders(ctx, executor); err != nil {
+			contextx.GetLoggerOrDefault(ctx).WarnContext(ctx, op, logx.Error(err), slog.Any("executor", executor))
+		}
+	}
+
+	return nil
+}
+
+func (s *OrderBalancerService) GetAllExecutors(ctx context.Context) ([]aggregate.ExecutorWithParams, error) {
+	const op = "OrderBalancerService.GetAllExecutors"
+	executors, err := s.executorsRepo.GetAll(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
+	return executors, nil
+}
+
+func (s *OrderBalancerService) SetExecutorStatus(ctx context.Context, id int, status string) error {
+	const op = "OrderBalancerService.SetExecutorStatus"
+	if err := s.executorsRepo.SetStatus(ctx, id, status); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	if status == "inactive" {
+		s.freeExecutors.del(id)
+	} else {
+		executor, err := s.executorsRepo.GetById(ctx, id)
+		if err != nil {
+			return fmt.Errorf("%s: %w", op, err)
+		}
+
+		s.freeExecutors.insertByOrderCount(executor)
+
+		if err := s.checkOrders(ctx, executor); err != nil {
+			contextx.GetLoggerOrDefault(ctx).WarnContext(ctx, op, logx.Error(err), slog.Any("executor", executor))
+		}
+	}
+
+	return nil
+}
+
+func (s *OrderBalancerService) AddExecutorParameter(ctx context.Context, id int, param *entity.ExecutorParameter) error {
+	const op = "OrderBalancerService.AddExecutorParameter"
+	if err := s.executorsRepo.AddParameter(ctx, id, param); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	executor := s.freeExecutors.findById(id)
+	if executor != nil {
+		executor.Parameters = append(executor.Parameters, *param)
+
+		if err := s.checkOrders(ctx, executor); err != nil {
+			contextx.GetLoggerOrDefault(ctx).WarnContext(ctx, op, logx.Error(err), slog.Any("executor", executor))
+		}
+	}
+
+	return nil
+}
+
+func (s *OrderBalancerService) DeleteExecutorParameter(ctx context.Context, id int, paramId int) error {
+	const op = "OrderBalancerService.DeleteExecutorParameter"
+	if err := s.executorsRepo.DeleteParameter(ctx, id, paramId); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	executor := s.freeExecutors.findById(id)
+	if executor != nil {
+		params := make([]entity.ExecutorParameter, 0, len(executor.Parameters)-1)
+		for _, param := range executor.Parameters {
+			if param.Id != paramId {
+				params = append(params, param)
+			}
+		}
+		executor.Parameters = params
+	}
+
+	return nil
+}
+
+func (s *OrderBalancerService) DeleteExecutor(ctx context.Context, id int) error {
+	const op = "OrderBalancerService.DeleteExecutor"
+	if err := s.executorsRepo.Delete(ctx, id); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	s.freeExecutors.del(id)
+	return nil
 }

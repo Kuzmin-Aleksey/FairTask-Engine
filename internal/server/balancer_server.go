@@ -8,6 +8,7 @@ import (
 	"FairTask_Engine/pkg/failure"
 	"encoding/json"
 	"net/http"
+	"strconv"
 )
 
 type BalancerServer struct {
@@ -79,6 +80,95 @@ func (s *BalancerServer) ApiHandleSetExecutorStatus(w http.ResponseWriter, r *ht
 	}
 
 	if err := s.balancer.SetExecutorStatus(ctx, req.ExecutorId, req.Status); err != nil {
+		writeAndLogErr(ctx, w, err)
+		return
+	}
+}
+
+func (s *BalancerServer) ApiHandleGetExecutors(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	executors, err := s.balancer.GetAllExecutors(ctx)
+	if err != nil {
+		writeAndLogErr(ctx, w, err)
+		return
+	}
+
+	writeJson(ctx, w, executors, http.StatusOK)
+}
+
+func (s *BalancerServer) ApiHandleNewExecutor(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	executor := &aggregate.ExecutorWithParams{}
+
+	if err := json.NewDecoder(r.Body).Decode(executor); err != nil {
+		writeAndLogErr(ctx, w, failure.NewInvalidRequestError(err.Error()))
+		return
+	}
+
+	if err := s.balancer.CreateExecutor(ctx, executor); err != nil {
+		writeAndLogErr(ctx, w, err)
+		return
+	}
+
+	writeJson(ctx, w, IdResponse{executor.Id}, http.StatusOK)
+
+}
+func (s *BalancerServer) ApiHandleDeleteExecutor(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	id, err := strconv.Atoi(r.URL.Query().Get("id"))
+	if err != nil {
+		writeAndLogErr(ctx, w, failure.NewInvalidRequestError(err.Error()))
+	}
+
+	if err := s.balancer.DeleteExecutor(ctx, id); err != nil {
+		writeAndLogErr(ctx, w, err)
+		return
+	}
+}
+
+type createExecutorParameterRequest struct {
+	ExecutorId  int    `json:"executor_id"`
+	ParameterId int    `json:"parameter_id"`
+	Mask        string `json:"mask"`
+}
+
+func (s *BalancerServer) ApiHandleAddExecutorParameter(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	param := new(createExecutorParameterRequest)
+
+	if err := json.NewDecoder(r.Body).Decode(param); err != nil {
+		writeAndLogErr(ctx, w, failure.NewInvalidRequestError(err.Error()))
+		return
+	}
+
+	if err := s.balancer.AddExecutorParameter(ctx, param.ExecutorId, &entity.ExecutorParameter{
+		Id:   param.ParameterId,
+		Mask: param.Mask,
+	}); err != nil {
+		writeAndLogErr(ctx, w, err)
+		return
+	}
+}
+
+type deleteExecutorParameterRequest struct {
+	ExecutorId  int `json:"executor_id"`
+	ParameterId int `json:"parameter_id"`
+}
+
+func (s *BalancerServer) ApiHandleDeleteExecutorParameter(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	param := new(deleteExecutorParameterRequest)
+
+	if err := json.NewDecoder(r.Body).Decode(param); err != nil {
+		writeAndLogErr(ctx, w, failure.NewInvalidRequestError(err.Error()))
+		return
+	}
+
+	if err := s.balancer.DeleteExecutorParameter(ctx, param.ExecutorId, param.ParameterId); err != nil {
 		writeAndLogErr(ctx, w, err)
 		return
 	}

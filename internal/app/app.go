@@ -7,7 +7,6 @@ import (
 	"FairTask_Engine/internal/domain/service/metric_service"
 	"FairTask_Engine/internal/domain/service/order_balancer"
 	"FairTask_Engine/internal/domain/service/parameters_service"
-	"FairTask_Engine/internal/infrastructure/integration/ais"
 	"FairTask_Engine/internal/infrastructure/persistence/postgresql"
 	"FairTask_Engine/internal/server"
 	"FairTask_Engine/pkg/contextx"
@@ -24,7 +23,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 )
@@ -159,13 +157,12 @@ func (ais *TestAIS) SendOrderExecutor(ctx context.Context, orderId, executorId i
 }
 
 func genTestExecutors(repo *postgresql.ExecutorsRepo) {
-	for i := 1; i <= 100; i++ {
+	for range 100 {
 		status := "active"
 
 		if err := repo.Create(context.Background(), &aggregate.ExecutorWithParams{
 			Executor: entity.Executor{
-				Id:     i,
-				Name:   "test name " + strconv.Itoa(i),
+				Name:   "test name",
 				Status: status,
 			},
 		}); err != nil {

@@ -22,13 +22,9 @@ func NewParametersRepo(db *sqlx.DB) *ParametersRepo {
 func (r *ParametersRepo) Save(ctx context.Context, param *entity.Parameter) error {
 	const op = "ParametersRepo.Save"
 
-	res, err := r.db.NamedExecContext(ctx, "INSERT INTO parameters (name, type) VALUES (:name, :type)", param)
-	if err != nil {
+	if err := r.db.GetContext(ctx, &param.Id, "INSERT INTO parameters (name, type) VALUES ($1, $2) RETURNING id", param.Name, param.Type); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
-
-	id, _ := res.LastInsertId()
-	param.Id = int(id)
 
 	return nil
 }

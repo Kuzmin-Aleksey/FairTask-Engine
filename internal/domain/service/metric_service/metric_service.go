@@ -1,6 +1,7 @@
 package metric_service
 
 import (
+	"FairTask_Engine/internal/domain/value"
 	"FairTask_Engine/pkg/contextx"
 	"FairTask_Engine/pkg/logx"
 	"context"
@@ -12,6 +13,8 @@ import (
 type Repo interface {
 	GetExecutorsOrdersCountList(ctx context.Context) ([]int, error)
 	GetCountByPeriod(ctx context.Context, start time.Time, period time.Duration) ([]int, error)
+	GetOllOrderCount(ctx context.Context) (int, error)
+	GetOrderCountByStatus(ctx context.Context, status value.OrderStatus) (int, error)
 }
 
 type MetricService struct {
@@ -74,4 +77,27 @@ func (s *MetricService) GetOrderCountByLimit(ctx context.Context, limit string) 
 	}
 
 	return timetable, nil
+}
+
+func (s *MetricService) GetOllOrderCount(ctx context.Context) (int, error) {
+	const op = "MetricService.GetOllOrderCount"
+	count, err := s.repo.GetOllOrderCount(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", op, err)
+	}
+	return count, nil
+}
+
+func (s *MetricService) GetCompleteOrderCount(ctx context.Context) (int, error) {
+	const op = "MetricService.GetCompleteOrderCount"
+	countAccept, err := s.repo.GetOrderCountByStatus(ctx, value.OrderStatusAccept)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", op, err)
+	}
+	countReject, err := s.repo.GetOrderCountByStatus(ctx, value.OrderStatusReject)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", op, err)
+	}
+
+	return countAccept + countReject, nil
 }

@@ -179,6 +179,8 @@ func (l *executorsList) findByParamsAndAddOrder(params []entity.OrderParameter) 
 
 			return
 		}
+
+		current = current.before
 	}
 
 	if checkExecutorParams(current.executor, params) {
@@ -219,6 +221,58 @@ func (l *executorsList) getFirsAndAddOrder() (executor *aggregate.ExecutorWithPa
 	current.before = &executorNode{executor: executor}
 
 	return
+}
+
+func (l *executorsList) findById(id int) *aggregate.ExecutorWithParams {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if l.list == nil {
+		return nil
+	}
+	current := l.list
+	for current != nil {
+		if current.executor.Id == id {
+			return current.executor
+		}
+		current = current.before
+	}
+	return nil
+}
+
+func (l *executorsList) addOrder(id int) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if l.list == nil {
+		return
+	}
+	var executor *aggregate.ExecutorWithParams
+
+	current := l.list
+	for current != nil {
+		if current.executor.Id == id {
+			executor = current.executor
+			executor.OrderCount++
+
+			for current.before != nil {
+				if current.before.executor.OrderCount > executor.OrderCount {
+					before := current.before
+					current.before = &executorNode{
+						executor: executor,
+						before:   before,
+					}
+					return
+				}
+				current = current.before
+			}
+
+			current.before = &executorNode{executor: executor}
+
+			return
+		}
+		current = current.before
+	}
 }
 
 func (l *executorsList) String() string {

@@ -60,7 +60,7 @@ func (r *OrdersRepo) GetById(ctx context.Context, id int) (*entity.Order, error)
 
 	order := new(entity.Order)
 
-	if err := r.db.GetContext(ctx, order, "SELECT * FROM orders WHERE id=$1", id); err != nil {
+	if err := r.db.GetContext(ctx, order, "SELECT id, parent_id, text, status, executor_id FROM orders WHERE id=$1", id); err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -80,6 +80,25 @@ func (r *OrdersRepo) GetParameters(ctx context.Context, id int) ([]entity.OrderP
 	}
 
 	return params, nil
+}
+
+func (r *OrdersRepo) GetWithoutExecutor(ctx context.Context) ([]aggregate.OrderWithParameter, error) {
+	const op = "OrdersRepo.GetWithoutExecutor"
+	var orders []aggregate.OrderWithParameter
+
+	if err := r.db.SelectContext(ctx, &orders, "SELECT id, parent_id, text, status, executor_id FROM orders WHERE executor_id=0 AND status='processed'"); err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
+
+	for i, order := range orders {
+		params, err := r.GetParameters(ctx, order.Id)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", op, err)
+		}
+		orders[i].Parameters = params
+	}
+
+	return orders, nil
 }
 
 func (r *OrdersRepo) SetStatus(ctx context.Context, id int, status value.OrderStatus) error {

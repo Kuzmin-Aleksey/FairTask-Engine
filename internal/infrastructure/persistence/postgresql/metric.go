@@ -1,6 +1,7 @@
 package postgresql
 
 import (
+	"FairTask_Engine/internal/domain/value"
 	"context"
 	"database/sql"
 	"errors"
@@ -65,4 +66,26 @@ ORDER BY (interval_start + ($1 || ' seconds')::INTERVAL);
 	}
 
 	return counts, nil
+}
+
+func (r *MetricRepo) GetOllOrderCount(ctx context.Context) (int, error) {
+	const op = "MetricRepo.GetOllOrderCount"
+	var count int
+
+	if err := r.db.GetContext(ctx, &count, "SELECT count(*) FROM orders"); err != nil {
+		return count, fmt.Errorf("%s: %w", op, err)
+	}
+
+	return count, nil
+}
+
+func (r *MetricRepo) GetOrderCountByStatus(ctx context.Context, status value.OrderStatus) (int, error) {
+	const op = "MetricRepo.GetOllOrderCount"
+	var count int
+
+	if err := r.db.GetContext(ctx, &count, "SELECT count(*) FROM orders WHERE status=$1", status); err != nil {
+		return count, fmt.Errorf("%s: %w", op, err)
+	}
+
+	return count, nil
 }
