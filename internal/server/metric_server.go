@@ -46,9 +46,9 @@ type responseCount struct {
 	Count int `json:"count"`
 }
 
-func (s *MetricServer) ApiHandleGetOllOrderCount(w http.ResponseWriter, r *http.Request) {
+func (s *MetricServer) ApiHandleGetAllOrderCount(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	count, err := s.metric.GetOllOrderCount(ctx)
+	count, err := s.metric.GetAllOrderCount(ctx)
 	if err != nil {
 		writeAndLogErr(ctx, w, failure.NewInvalidRequestError(err.Error()))
 		return

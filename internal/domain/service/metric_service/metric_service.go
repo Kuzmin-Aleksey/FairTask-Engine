@@ -12,8 +12,8 @@ import (
 
 type Repo interface {
 	GetExecutorsOrdersCountList(ctx context.Context) ([]int, error)
-	GetCountByPeriod(ctx context.Context, start time.Time, period time.Duration) ([]int, error)
-	GetOllOrderCount(ctx context.Context) (int, error)
+	GetCountByPeriod(ctx context.Context, start time.Time, end time.Time) (int, error)
+	GetAllOrderCount(ctx context.Context) (int, error)
 	GetOrderCountByStatus(ctx context.Context, status value.OrderStatus) (int, error)
 }
 
@@ -39,7 +39,12 @@ func (s *MetricService) GetExecutorsOrdersCountList(ctx context.Context) ([]int,
 	return countList, nil
 }
 
-func (s *MetricService) GetOrderCountByLimit(ctx context.Context, limit string) (map[time.Time]int, error) {
+type TimeCount struct {
+	Ts    time.Time `json:"ts"`
+	Count int       `json:"count"`
+}
+
+func (s *MetricService) GetOrderCountByLimit(ctx context.Context, limit string) ([]TimeCount, error) {
 	const op = "MetricService.GetOrderCountByLimit"
 
 	var delay time.Duration
@@ -52,8 +57,8 @@ func (s *MetricService) GetOrderCountByLimit(ctx context.Context, limit string) 
 		delay = time.Minute
 		start = now.Add(-time.Hour)
 	case "day":
-		delay = time.Hour * 4
-		start = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		delay = time.Hour
+		start = time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), 0, 0, 0, now.Location()).Add(-time.Hour * 24)
 	case "week":
 		delay = time.Hour * 24
 		start = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).Add(-time.Hour * 24 * 7)
@@ -64,24 +69,27 @@ func (s *MetricService) GetOrderCountByLimit(ctx context.Context, limit string) 
 
 	contextx.GetLoggerOrDefault(ctx).InfoContext(ctx, op, logx.Stringer("delay", delay), logx.Stringer("start", start))
 
-	counts, err := s.repo.GetCountByPeriod(ctx, start, delay)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", op, err)
-	}
+	var timetable []TimeCount
 
-	timetable := make(map[time.Time]int)
+	for ts := start; ts.Before(now); ts = ts.Add(delay) {
+		endPeriod := ts.Add(delay)
+		count, err := s.repo.GetCountByPeriod(ctx, ts, endPeriod)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", op, err)
+		}
 
-	for i, count := range counts {
-		timetable[start.Add(time.Duration(i)*delay)] = count + 1
-
+		timetable = append(timetable, TimeCount{
+			Ts:    ts,
+			Count: count,
+		})
 	}
 
 	return timetable, nil
 }
 
-func (s *MetricService) GetOllOrderCount(ctx context.Context) (int, error) {
-	const op = "MetricService.GetOllOrderCount"
-	count, err := s.repo.GetOllOrderCount(ctx)
+func (s *MetricService) GetAllOrderCount(ctx context.Context) (int, error) {
+	const op = "MetricService.GetAllOrderCount"
+	count, err := s.repo.GetAllOrderCount(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", op, err)
 	}
