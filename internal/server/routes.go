@@ -16,8 +16,8 @@ func (s *Server) InitRoutes(rtr *mux.Router) {
 	rtr.HandleFunc("/executors/parameters/del", s.balancer.ApiHandleDeleteExecutorParameter).Methods(http.MethodPost)
 
 	rtr.HandleFunc("/metric/order_count", s.metric.ApiHandleGetAllOrderCount).Methods(http.MethodGet)
-	rtr.HandleFunc("/metric/order_count", s.metric.ApiHandleGetAllOrderCount).Methods(http.MethodGet)
 	rtr.HandleFunc("/metric/executor_orders", s.metric.ApiHandleGetExecutorsOrdersCountList).Methods(http.MethodGet)
+	rtr.HandleFunc("/metric/order_count_limit", s.metric.ApiHandleGetOrderCountByLimit).Methods(http.MethodGet)
 	rtr.HandleFunc("/metric/complete_order_count", s.metric.ApiHandleGetCompleteOrderCount).Methods(http.MethodGet)
 
 	rtr.HandleFunc("/parameters/create", s.parameters.ApiHandleCreateParameter).Methods(http.MethodPost)
