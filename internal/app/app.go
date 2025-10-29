@@ -2,8 +2,6 @@ package app
 
 import (
 	"FairTask_Engine/internal/config"
-	"FairTask_Engine/internal/domain/aggregate"
-	"FairTask_Engine/internal/domain/entity"
 	"FairTask_Engine/internal/domain/service/metric_service"
 	"FairTask_Engine/internal/domain/service/order_balancer"
 	"FairTask_Engine/internal/domain/service/parameters_service"
@@ -154,19 +152,4 @@ type TestAIS struct {
 func (ais *TestAIS) SendOrderExecutor(ctx context.Context, orderId, executorId int) error {
 	contextx.GetLoggerOrDefault(ctx).InfoContext(ctx, "AIS", slog.Int("order_id", orderId), slog.Int("executor_id", executorId))
 	return nil
-}
-
-func genTestExecutors(repo *postgresql.ExecutorsRepo) {
-	for range 100 {
-		status := "active"
-
-		if err := repo.Create(context.Background(), &aggregate.ExecutorWithParams{
-			Executor: entity.Executor{
-				Name:   "test name",
-				Status: status,
-			},
-		}); err != nil {
-			log.Println(err)
-		}
-	}
 }
