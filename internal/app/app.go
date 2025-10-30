@@ -5,6 +5,7 @@ import (
 	"FairTask_Engine/internal/domain/service/metric_service"
 	"FairTask_Engine/internal/domain/service/order_balancer"
 	"FairTask_Engine/internal/domain/service/parameters_service"
+	"FairTask_Engine/internal/infrastructure/integration/ais"
 	"FairTask_Engine/internal/infrastructure/persistence/postgresql"
 	"FairTask_Engine/internal/server"
 	"FairTask_Engine/pkg/contextx"
@@ -38,8 +39,7 @@ func Run(cfg *config.Config) {
 
 	defer db.Close()
 
-	//aicImpl := ais.NewAIS(cfg.AIS)
-	aicImpl := &TestAIS{}
+	aicImpl := ais.NewAIS(cfg.AIS)
 
 	executorsRepo := postgresql.NewExecutorsRepo(db)
 	ordersRepo := postgresql.NewOrdersRepo(db)
@@ -144,12 +144,4 @@ func initLogger(debug bool) *slog.Logger {
 	return slog.New(slog.NewJSONHandler(io.MultiWriter(os.Stdout, rt), &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
-}
-
-type TestAIS struct {
-}
-
-func (ais *TestAIS) SendOrderExecutor(ctx context.Context, orderId, executorId int) error {
-	contextx.GetLoggerOrDefault(ctx).InfoContext(ctx, "AIS", slog.Int("order_id", orderId), slog.Int("executor_id", executorId))
-	return nil
 }
